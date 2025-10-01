@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>อัปโหลดบัตรสอบ</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 18px; max-width:700px; margin:auto; }
+      label { display:block; margin-top:12px; }
+      input[type="text"], input[type="password"], input[type="file"] { width:100%; padding:8px; }
+      button { margin-top:12px; padding:10px 16px; }
+      .result { margin-top:12px; padding:10px; border-radius:6px; }
+      .ok { background:#e6ffed; border:1px solid #a3e6b3; }
+      .err { background:#ffecec; border:1px solid #f2a2a2; }
+    </style>
+  </head>
+  <body>
+    <h2>อัปโหลดบัตรสอบ</h2>
+
+    <label for="studentId">รหัสผู้สอบ</label>
+    <input id="studentId" type="text" placeholder="เช่น 63123456" />
+
+    <label for="studentName">ชื่อ-สกุล ผู้สอบ</label>
+    <input id="studentName" type="text" placeholder="เช่น สมชาย ใจดี" />
+
+    <label for="secret">รหัสลับ (Secret Token)</label>
+    <input id="secret" type="password" placeholder="กรอกรหัสลับ" />
+
+    <label for="fileInput">เลือกไฟล์บัตรสอบ</label>
+    <input id="fileInput" type="file" accept="image/*,application/pdf" />
+
+    <button id="uploadBtn">อัปโหลดไปยัง Google Drive</button>
+
+    <div id="status"></div>
+
+    <script>
+      const uploadBtn = document.getElementById('uploadBtn');
+      const statusEl = document.getElementById('status');
+
+      function setStatus(html, ok) {
+        statusEl.innerHTML = '<div class="result ' + (ok ? 'ok' : 'err') + '">' + html + '</div>';
+      }
+
+      uploadBtn.addEventListener('click', () => {
+        const studentId = document.getElementById('studentId').value.trim();
+        const studentName = document.getElementById('studentName').value.trim();
+        const token = document.getElementById('secret').value.trim();
+        const fileInput = document.getElementById('fileInput');
+
+        if (!studentId || !studentName || !token) { 
+          setStatus('กรุณากรอกข้อมูลให้ครบ', false); return; 
+        }
+        if (!fileInput.files || fileInput.files.length === 0) { 
+          setStatus('กรุณาเลือกไฟล์ก่อนอัปโหลด', false); return; 
+        }
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+          const dataUrl = e.target.result;
+          const commaIndex = dataUrl.indexOf(',');
+          const meta = dataUrl.substring(0, commaIndex);
+          const base64 = dataUrl.substring(commaIndex + 1);
+
+          let mimeMatch = meta.match(/data:([^;]+);base64/);
+          let mimeType = mimeMatch ? mimeMatch[1] : file.type || 'application/octet-stream';
+
+          const safeName = studentName.replace(/[^a-zA-Z0-9ก-๙ _-]/g,'');
+          const filename = 'card_' + studentId + '_' + safeName + '.' + (mimeType === 'application/pdf' ? 'pdf' : (file.name.split('.').pop() || 'jpg'));
+
+          setStatus('กำลังอัปโหลด...', true);
+
+          google.script.run.withSuccessHandler(function(resp) {
+            if (resp && resp.success) {
+              setStatus('✅ อัปโหลดสำเร็จ!<br><a href="' + resp.url + '" target="_blank">เปิดไฟล์</a>', true);
+            } else {
+              setStatus('❌ เกิดข้อผิดพลาด: ' + (resp.error || 'ไม่ทราบสาเหตุ'), false);
+            }
+          }).withFailureHandler(function(err) {
+            setStatus('❌ การเชื่อมต่อล้มเหลว: ' + err.message, false);
+          }).uploadFileToDrive(base64, filename, mimeType, token, { studentId: studentId, studentName: studentName });
+        };
+
+        reader.readAsDataURL(file);
+      });
+    </script>
+  </body>
+</html>
