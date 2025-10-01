@@ -22,7 +22,7 @@
 <button id="btnUpload">อัปโหลด</button>
 <div id="status"></div>
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyAQwpcLx32CIuqv2c5Dl6N2L8rBnDGZoDh-O_ZJTFmOrXmjY55Z1_Gj9o3__uMfUvi/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwQuAai73vd3M_CWhc2hlQYnIQo2X2vrqIXj8JVaVQp1hnPuvrEu9Oxmy2Si-VLLsbz/exec";
 
     const btn = document.getElementById("btnUpload");
     const statusEl = document.getElementById("status");
@@ -37,26 +37,36 @@
       if (!student) { setStatus("⚠️ กรุณากรอกชื่อผู้สอบ", false); return; }
       if (!fileInput.files[0]) { setStatus("⚠️ กรุณาเลือกไฟล์", false); return; }
 
-      const formData = new FormData();
-      formData.append("student", student);
-      formData.append("file", fileInput.files[0].name);
-      formData.append("fileData", fileInput.files[0]);
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const base64Data = e.target.result.split(",")[1];
 
-      setStatus("⏳ กำลังอัปโหลด...");
+        setStatus("⏳ กำลังอัปโหลด...");
 
-      try {
-        const res = await fetch(GAS_URL, { method: "POST", body: formData });
-        const data = await res.json();
-        if (data.status === "success") {
-          setStatus(`✅ อัปโหลดสำเร็จ <br><a href="${data.fileUrl}" target="_blank">เปิดไฟล์ใน Drive</a>`);
-        } else {
-          setStatus("❌ อัปโหลดไม่สำเร็จ: " + data.message, false);
+        try {
+          const res = await fetch(GAS_URL, {
+            method: "POST",
+            body: JSON.stringify({
+              student: student,
+              fileName: file.name,
+              mimeType: file.type,
+              data: base64Data
+            }),
+            headers: { "Content-Type": "application/json" }
+          });
+          const data = await res.json();
+          if (data.status === "success") {
+            setStatus(`✅ อัปโหลดสำเร็จ <br><a href="${data.fileUrl}" target="_blank">เปิดไฟล์ใน Drive</a>`);
+          } else {
+            setStatus("❌ อัปโหลดไม่สำเร็จ: " + data.message, false);
+          }
+        } catch (err) {
+          setStatus("❌ เกิดข้อผิดพลาด: " + err.message, false);
         }
-      } catch (err) {
-        setStatus("❌ เกิดข้อผิดพลาด: " + err.message, false);
-      }
+      };
+      reader.readAsDataURL(file);
     });
-  </script>
+</script>
 </body>
 </html>
-
